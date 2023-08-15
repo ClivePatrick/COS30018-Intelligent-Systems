@@ -4,3 +4,4 @@ matplotlib
 numpy
 pandas
 yahoo_fin
+yfinance

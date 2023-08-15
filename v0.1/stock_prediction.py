@@ -186,7 +186,7 @@ model.fit(x_train, y_train, epochs=25, batch_size=32)
 TEST_START = '2020-01-02'
 TEST_END = '2022-12-31'
 
-test_data = yf.download(COMPANY, start=TEST_START, end=TEST_END, progress=False)
+test_data = yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
 
 # The above bug is the reason for the following line of code
 test_data = test_data[1:]

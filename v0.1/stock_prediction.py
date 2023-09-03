@@ -24,9 +24,91 @@ import datetime as dt
 import tensorflow as tf
 import yfinance as yf
 
+import os
+from datetime import datetime
+
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
+
+def load_data(company: str, start: str, end: str, prediction_days: int=30, test_size: float=0.2,
+              split_by_date: bool=True, scale_features: bool=True, local: bool=True,
+              feature_columns=['Adj Close', 'Volume', 'Open', 'High', 'Low']):
+    # Decide upon a filename that is unique to the data we are requesting.
+    # The only differentiating attributes are the company and the start and end date.
+    data_filename = os.path.join('data', f'{company}_{start}_{end}.csv')
+
+    # If the file exists, then parse the file using the Pandas `read_csv` function.
+    # Otherwise, download it from the internet using the yfinance module.
+    if local and os.path.exists(data_filename):
+        data = pd.read_csv(data_filename)
+    else:
+        data = yf.download(company, start, end, progress=False)
+        
+        # Of course if we're choosing to store the data for later use, we will save it to
+        # a csv file using Pandas handy `to_csv` function.
+        if local:
+            data.to_csv(data_filename)
+    
+    # We'll create a dictionary to store the various data like the DataFrame,
+    # and the column scalers, etc.
+    result = {}
+    result['df'] = data
+
+    # If we've decided to scale the featues between zero and one,
+    # then create a `column_scaler` dictionary that contains the `MinMaxScaler`
+    # for each feature column.
+    if scale_features:
+        column_scaler = {}
+
+        for column in feature_columns:
+            scaler = MinMaxScaler()
+
+            # Since the `fit_transform` function is expecting a 2D Numpy array with the shape of (n_samples, n_features),
+            # and our `data[column].values` is only a 1D Numpy array, we need to reshape it into (len(data[column].values), 1).
+            # The -1 denotes that Numpy is free to figure out how large that dimension will be, in this case
+            # it will work out to be the length of this particular feature column (len(data[column].values)).
+            data[column] = scaler.fit_transform(data[column].values.reshape(-1, 1))
+            
+            column_scaler[column] = scaler
+
+        result['column_scaler'] = column_scaler
+
+    # Create the training targets by shifting the closing prices one day forward.
+    data['Future'] = data['Close'].shift(-1)
+
+    # To deal with the NaN issue, we use Pandas `dropna` function on the DataFrame.
+    # Which will drop any row that contains a NaN value in at least one of its columns.
+    # Passing `inplace=True` makes sure to modify the existing DataFrame
+    # instead of creating a new one.
+    data.dropna(inplace=True)
+
+    X, y = [], []
+
+    # Prepare the data such that each `X` is a 2D DataFrame of consecutive `prediction_day`
+    # intervals of feature columns, and each `y` is the closing price of the next day.
+    for x in range(prediction_days, len(data)):
+        X.append(data[feature_columns][x-prediction_days:x])
+        y.append(data['Future'][x])
+
+    # Convert to numpy arrays
+    X = np.array(X)
+    y = np.array(y)
+
+    if split_by_date:
+        # Split the X and y numpy arrays for the training and test datasets by 
+        # finding the last index of the training samples and spliting it using slices.
+        train_samples = int((1 - test_size) * len(X))
+        result["X_train"] = X[:train_samples]
+        result["y_train"] = y[:train_samples]
+        result["X_test"] = X[train_samples:]
+        result["y_test"] = y[train_samples:]
+    else:    
+        # Use sklearn's `train_test_split` to random train and test subsets according to the `test_size` ratio.
+        result["X_train"], result["X_test"], result["y_train"], result["y_test"] = train_test_split(X, y, test_size=test_size)
+    
+    return result
 
 #------------------------------------------------------------------------------
 # Load Data
@@ -42,8 +124,11 @@ COMPANY = "TSLA"
 TRAIN_START = '2015-01-01'
 TRAIN_END = '2020-01-01'
 
-data =  yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
+# data =  yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
+data = load_data(COMPANY, TRAIN_START, TRAIN_END)
 # yf.download(COMPANY, start = TRAIN_START, end=TRAIN_END)
+
+exit(0)
 
 # For more details: 
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/dsintro.html

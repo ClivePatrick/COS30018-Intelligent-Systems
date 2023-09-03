@@ -27,6 +27,8 @@ import yfinance as yf
 import os
 from datetime import datetime
 
+import mplfinance as fplt
+
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
@@ -42,9 +44,10 @@ def load_data(company: str, start: str, end: str, prediction_days: int=30, test_
     # If the file exists, then parse the file using the Pandas `read_csv` function.
     # Otherwise, download it from the internet using the yfinance module.
     if local and os.path.exists(data_filename):
-        data = pd.read_csv(data_filename)
+        data = pd.read_csv(data_filename, parse_dates=True, index_col='Date')
     else:
         data = yf.download(company, start, end, progress=False)
+        # data = data[['Date', 'Adj Close', 'Volume', 'Open', 'High', 'Low']]
 
         # Of course if we're choosing to store the data for later use, we will save it to
         # a csv file using Pandas handy `to_csv` function.
@@ -54,7 +57,7 @@ def load_data(company: str, start: str, end: str, prediction_days: int=30, test_
     # We'll create a dictionary to store the various data like the DataFrame,
     # and the column scalers, etc.
     result = {}
-    result['df'] = data
+    result['df'] = data.copy()
 
     # If we've decided to scale the featues between zero and one,
     # then create a `column_scaler` dictionary that contains the `MinMaxScaler`
@@ -110,6 +113,44 @@ def load_data(company: str, start: str, end: str, prediction_days: int=30, test_
     
     return result
 
+
+def show_candlestick_chart(data, start='2015-03-01', end='2015-05-31', n=1):
+    df = data['df']
+
+    # Create a copy of the DataFrame with only the rows which are within the specifed date range.
+    date_range = pd.date_range(start=start, end=end)
+    df = df.reindex(date_range, copy=True)
+
+    # Aggregate every `n` trading days using the `resample` function to split it into `n` days and the 
+    # `agg` function to deal with how to combine the values over the range.
+    df = df.resample(f'{n}D').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
+
+    # Plot a candlestick graph along with a subplot below the candlestick plot
+    # to display the volume per trading day.
+    fplt.plot(
+        df,
+        type='candle',
+        style='binance',
+        title=f'TSLA, {start} to {end} ({n} Trading Days)',
+        ylabel='Price ($)',
+        volume=True,
+        ylabel_lower='Volume',
+    )
+
+
+def show_boxplot_chart(data, start='2015-03-01', end='2015-05-31'):
+    df = data['df']
+    
+    # Create a copy of the DataFrame with only the rows which are within the specifed date range.
+    date_range = pd.date_range(start=start, end=end)
+    df = df.reindex(date_range, copy=True)
+
+    # Show the box plot for the `Close` column within the DataFrame,
+    # using the boxplot function in Pandas which calls the matplotlib backend.
+    df.boxplot('Close')
+    plt.show()
+
+
 #------------------------------------------------------------------------------
 # Load Data
 ## TO DO:
@@ -127,6 +168,9 @@ TRAIN_END = '2020-01-01'
 # data =  yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
 data = load_data(COMPANY, TRAIN_START, TRAIN_END)
 # yf.download(COMPANY, start = TRAIN_START, end=TRAIN_END)
+
+show_candlestick_chart(data)
+show_boxplot_chart(data)
 
 exit(0)
 

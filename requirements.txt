@@ -5,3 +5,4 @@ numpy
 pandas
 yahoo_fin
 yfinance
+mplfinance

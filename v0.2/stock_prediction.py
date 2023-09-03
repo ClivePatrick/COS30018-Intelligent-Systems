@@ -170,6 +170,7 @@ data = load_data(COMPANY, TRAIN_START, TRAIN_END)
 # yf.download(COMPANY, start = TRAIN_START, end=TRAIN_END)
 
 show_candlestick_chart(data)
+show_candlestick_chart(data, n=5)
 show_boxplot_chart(data)
 
 exit(0)
